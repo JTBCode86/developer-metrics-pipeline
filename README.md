@@ -57,6 +57,14 @@ Caso deseje remover também os volumes (limpando completamente os dados persisti
 ```bash
 docker-compose down -v
 ```
+
+## 🔧 Troubleshooting
+Caso encontre problemas persistentes durante a orquestração ou alterações nos scripts não sejam aplicadas pelo Docker, você pode limpar o cache de build para forçar uma nova reconstrução das imagens:
+```bash
+docker builder prune -f
+docker-compose up --build
+```
+
 ## 📊 Observabilidade
 Assim que o comando for executado, o terminal unificará os logs de todos os componentes. Você poderá acompanhar em tempo real:
 
@@ -68,7 +76,7 @@ Assim que o comando for executado, o terminal unificará os logs de todos os com
 * **Concorrência:** Gerenciamento seguro de estado via coleções concorrentes.
 * **Escalabilidade:** Estrutura pronta para produção com *Single-Table Design* no DynamoDB.
 
-  ## 🤝 Contribuições
+## 🤝 Contribuições
 Contribuições são bem-vindas! Sinta-se à vontade para abrir uma *Issue* ou enviar um *Pull Request* caso encontre melhorias, correções de bugs ou novas funcionalidades para o pipeline.
 
 ---
