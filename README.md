@@ -41,7 +41,7 @@ Para rodar o ecossistema completo, basta realizar o clone do repositório e exec
 
 ### 1. Clonar o Repositório
 ```bash
-git clone [https://github.com/JTBCode86/developer-metrics-pipeline.git]
+git clone https://github.com/JTBCode86/developer-metrics-pipeline.git
 ```
 ### 2. Abra o seu terminal, navegue até a pasta developer-metrics-pipeline e execute o comando abaixo
 ```bash
