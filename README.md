@@ -2,6 +2,15 @@
 
 Pipeline de dados orientado a eventos (EDA) desenvolvido em **.NET 8** para coleta, processamento e agregação de métricas de produtividade de desenvolvedores em tempo real.
 
+## 📋 Pré-requisitos
+Para executar este projeto, você precisará dos seguintes softwares instalados em sua máquina:
+
+* **[Docker Desktop](https://www.docker.com/products/docker-desktop/):** Necessário para rodar os containers e o orquestrador Docker Compose.
+* **.NET 8 SDK:** Caso deseje compilar ou realizar alterações no código dos serviços.
+* **Git:** Para clonar o repositório.
+
+*Certifique-se de que o Docker esteja em execução antes de iniciar o projeto.*
+
 ## 🏗️ Arquitetura do Sistema
 O sistema foi projetado seguindo princípios de **Event-Driven Architecture (EDA)**, focando em escalabilidade e resiliência:
 
