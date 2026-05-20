@@ -1,23 +1,24 @@
-### AL ###
-#Template for AL projects for Dynamics 365 Business Central
-#launch.json folder
+# Pastas de saída da compilação (Binários que nunca devem ser versionados)
+[Bb]in/
+[Oo]bj/
+*.csproj.user
+*.userprefs
+*.pidb
+*.log
+*.sqlite
+*.sdf
+*.suo
+*.user
+
+# Pastas de configuração e cache do Visual Studio/VS Code
+.vs/
 .vscode/
-#Cache folder
-.alcache/
-#Symbols folder
-.alpackages/
-#Snapshots folder
-.snapshots/
-#Testing Output folder
-.output/
-#Extension App-file
-*.app
-#Rapid Application Development File
-rad.json
-#Translation Base-file
-*.g.xlf
-#License-files
-*.bclicense
-*.flf
-#Test results file
-TestResults.xml
+.nuget/
+**/bin/
+**/obj/
+
+# Arquivos de sistema e temporários
+.DS_Store
+Thumbs.db
+*.tmp
+*.bak

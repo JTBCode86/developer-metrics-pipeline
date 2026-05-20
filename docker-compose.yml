@@ -1,0 +1,65 @@
+version: '3.8'
+
+networks:
+  metrics_network:
+    driver: bridge
+
+services:
+  localstack:
+    container_name: metrics-pipeline-localstack
+    image: localstack/localstack:3.4  # Versão estável e open-source garantida
+    ports:
+      - "4566:4566"
+    environment:
+      - SERVICES=sqs,dynamodb
+      - AWS_DEFAULT_REGION=us-east-1
+    volumes:
+      - ./src/infra/localstack:/etc/localstack/init/ready.d
+      - ./src/scripts:/scripts
+    #CORREÇÃO: Healthcheck universal via chamada HTTP na porta do LocalStack
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:4566/_localstack/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - metrics_network
+
+  processor-service:
+    container_name: metrics-processor
+    build:
+      context: ./src
+      dockerfile: services/Processor/Dockerfile
+    environment:
+      - AWS__ServiceURL=http://localstack:4566
+      - AWS__Region=us-east-1
+      - AWS_ACCESS_KEY_ID=mock_key
+      - AWS_SECRET_ACCESS_KEY=mock_secret
+      - QueueSettings__RawEventsQueueName=raw-events
+      - QueueSettings__ProcessedEventsQueueName=processed-events
+      - WorkerSettings__Count=4
+    depends_on:
+      localstack:
+        condition: service_healthy # Só inicializa o polling quando o LocalStack estiver 100% pronto
+    networks:
+      - metrics_network
+
+  aggregator-service:
+    container_name: metrics-aggregator
+    build:
+      context: ./src
+      dockerfile: services/Aggregator/Dockerfile
+    ports:
+      - "5000:8080"
+    environment:
+      - AWS__ServiceURL=http://localstack:4566
+      - AWS__Region=us-east-1
+      # Injetado para sanar de vez o erro de falta de credenciais do SDK no Aggregator
+      - AWS_ACCESS_KEY_ID=mock_key          
+      - AWS_SECRET_ACCESS_KEY=mock_secret   
+      - QueueSettings__ProcessedEventsQueueName=processed-events
+    depends_on:
+      localstack:
+        condition: service_healthy # Só inicializa o consumo quando o LocalStack estiver 100% pronto
+    networks:
+      - metrics_network
