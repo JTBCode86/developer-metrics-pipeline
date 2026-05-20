@@ -32,17 +32,31 @@ Para rodar o ecossistema completo, basta realizar o clone do repositório e exec
 
 ### 1. Clonar o Repositório
 ```bash
-git clone [https://github.com/JTBCode86/developer-metrics-pipeline.git](https://github.com/JTBCode86/developer-metrics-pipeline.git)
+git clone [https://github.com/JTBCode86/developer-metrics-pipeline.git]
+```
+### 2. Abra o seu terminal, navegue até a pasta developer-metrics-pipeline e execute o comando abaixo
+```bash
 cd developer-metrics-pipeline
 ```
-
+### 3. Executar o comando abaixo
+```bash
+docker-compose up --build
+```
 **O que este comando faz:**
 
 * **Infraestrutura:** Subida do ambiente LocalStack.
 * **Provisionamento:** Criação automática das filas SQS e tabelas DynamoDB.
 * **Carga Inicial:** Disparo do *seed* de eventos conforme requisitos do projeto.
 * **Execução:** Inicialização de todos os serviços (Workers) prontos para processar os dados.
- 
+
+## 🛑 Como Parar o Projeto
+```bash
+docker-compose down
+```
+Caso deseje remover também os volumes (limpando completamente os dados persistidos no DynamoDB para um próximo teste "do zero"):
+```bash
+docker-compose down -v
+```
 ## 📊 Observabilidade
 Assim que o comando for executado, o terminal unificará os logs de todos os componentes. Você poderá acompanhar em tempo real:
 
@@ -53,3 +67,9 @@ Assim que o comando for executado, o terminal unificará os logs de todos os com
 * **Resiliência:** Processamento *At-Least-Once*.
 * **Concorrência:** Gerenciamento seguro de estado via coleções concorrentes.
 * **Escalabilidade:** Estrutura pronta para produção com *Single-Table Design* no DynamoDB.
+
+  ## 🤝 Contribuições
+Contribuições são bem-vindas! Sinta-se à vontade para abrir uma *Issue* ou enviar um *Pull Request* caso encontre melhorias, correções de bugs ou novas funcionalidades para o pipeline.
+
+---
+*Desenvolvido com foco em arquitetura de sistemas distribuídos e boas práticas de desenvolvimento .NET*
