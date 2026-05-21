@@ -76,9 +76,11 @@ namespace Processor
                                             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
                                         });
 
-                                        if (rawEvent == null)
-                                            throw new ArgumentException("Payload invalido ou nulo.");
-
+                                        if (rawEvent == null) 
+                                        {
+                                            throw (new Exception("Teste"));//continue;
+                                        }
+                                        
                                         _logger.LogInformation("Mensagem capturada na fila raw-events.");
 
                                         var (isValid, failureReason) = rawEvent.Validate();
@@ -86,7 +88,6 @@ namespace Processor
                                         if (!isValid)
                                         {
                                             _logger.LogWarning("Evento rejeitado na validacao. Motivo: {FailureReason}", failureReason);
-                                            throw new ArgumentException("Falha de validacao: " + failureReason);
                                         }
 
                                         var processedEvent = new ProcessedEvent
@@ -115,7 +116,6 @@ namespace Processor
                                     {
                                         _logger.LogError(ex, "Erro encontrado no processamento do evento.");
 
-                                        //int receiveCount = int.TryParse(message.Attributes["ApproximateReceiveCount"], out var rc) ? rc : 1;
                                         int receiveCount = 1;
                                         if (message.Attributes != null && message.Attributes.TryGetValue("ApproximateReceiveCount", out var countStr))
                                         {

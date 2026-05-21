@@ -1,8 +1,4 @@
-using System;
-using System.Collections.Generic;
-using System.Text.Json;
-using System.Threading;
-using System.Threading.Tasks;
+using Aggregator.Internal.Domain;
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using Amazon.SQS;
@@ -10,7 +6,12 @@ using Amazon.SQS.Model;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Aggregator.Internal.Domain;
+using System;
+using System.Buffers.Text;
+using System.Collections.Generic;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Aggregator
 {
@@ -28,12 +29,17 @@ namespace Aggregator
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
             var baseUrl = configuration["AWS:ServiceURL"] ?? configuration["AWS__ServiceURL"] ?? "http://localstack:4566";
-            _queueUrl = $"{baseUrl}/000000000000/processed-events";
+            // _queueUrl = configuration["QueueSettings__ProcessedEventsQueueName"];
+            // _queueUrl = $"{baseUrl}/000000000000/{_queueUrl}";
+            //_logger.LogInformation("DEBUG: O nome da fila lido da configuração é: {NomeFila}", _queueUrl); // ADICIONE ESTE LOG
+            _queueUrl = $"{baseUrl}/000000000000/raw-events";
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             _logger.LogInformation("Aggregator Worker iniciado e ouvindo a fila processed-events.");
+            await Task.Delay(10000, stoppingToken);
+            _logger.LogInformation("Infraestrutura pronta. Iniciando Worker...");
 
             while (!stoppingToken.IsCancellationRequested)
             {
@@ -53,31 +59,51 @@ namespace Aggregator
                         {
                             try
                             {
-                                var processedEvent = JsonSerializer.Deserialize<ProcessedEvent>(message.Body, new JsonSerializerOptions
+                                //_logger.LogInformation("DEBUG: Conteúdo bruto da mensagem: {Body}", message.Body);
+                                using (JsonDocument doc = JsonDocument.Parse(message.Body))
                                 {
-                                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-                                });
+                                    JsonElement root = doc.RootElement;
 
-                                if (processedEvent == null) continue;
+                                    // Extraindo valores manualmente das chaves JSON
+                                    string eventId = root.GetProperty("event_id").GetString();
+                                    string developerId = root.GetProperty("developer_id").GetString();
+                                    string metricType = root.GetProperty("metric_type").GetString();
+                                    double value = root.GetProperty("value").GetDouble();
+                                    string repository = root.GetProperty("repository").GetString();
+                                    DateTime timestamp = root.GetProperty("timestamp").GetDateTime();
 
-                                using (_logger.BeginScope("{EventId}", processedEvent.EventId))
-                                {
-                                    _logger.LogInformation("Consumindo evento processado para agregacao.");
+                                    _logger.LogInformation("DEBUG MANUAL: Extração concluída - EventId={Id}", eventId);
 
-                                    bool isDuplicate = await checkIdempotencyAsync(processedEvent.EventId, stoppingToken);
-                                    if (isDuplicate)
+                                    // Criando o objeto manualmente com os dados extraídos
+                                    var processedEvent = new ProcessedEvent
                                     {
-                                        _logger.LogWarning("Evento duplicado detectado. Ignorando processamento.");
+                                        EventId = eventId,
+                                        DeveloperId = developerId,
+                                        MetricType = metricType,
+                                        Value = value,
+                                        Repository = repository,
+                                        Timestamp = timestamp
+                                    };
+
+                                    using (_logger.BeginScope("{EventId}", processedEvent.EventId))
+                                    {
+                                        _logger.LogInformation("Consumindo evento processado para agregação.");
+
+                                        bool isDuplicate = await checkIdempotencyAsync(processedEvent.EventId, stoppingToken);
+                                        if (isDuplicate)
+                                        {
+                                            _logger.LogWarning("Evento duplicado. Ignorando.");
+                                            await _sqsClient.DeleteMessageAsync(_queueUrl, message.ReceiptHandle, stoppingToken);
+                                            continue;
+                                        }
+
+                                        await saveEventToDynamoAsync(processedEvent, stoppingToken);
+                                        await updateDeveloperSummaryAsync(processedEvent, stoppingToken);
+
                                         await _sqsClient.DeleteMessageAsync(_queueUrl, message.ReceiptHandle, stoppingToken);
-                                        continue;
+                                        _logger.LogInformation("Métricas persistidas com sucesso.");
                                     }
-
-                                    await saveEventToDynamoAsync(processedEvent, stoppingToken);
-                                    await updateDeveloperSummaryAsync(processedEvent, stoppingToken);
-
-                                    await _sqsClient.DeleteMessageAsync(_queueUrl, message.ReceiptHandle, stoppingToken);
-                                    _logger.LogInformation("Métricas agregadas e persistidas com sucesso.");
-                                }
+                                }        
                             }
                             catch (Exception ex)
                             {

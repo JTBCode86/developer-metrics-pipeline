@@ -1,58 +1,36 @@
-using Amazon.DynamoDBv2;
 using Amazon.SQS;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
-using Processor;
+using Amazon.SQS.Model;
+using Microsoft.AspNetCore.Builder;
+using Processor.Internal.Domain;
+using System.Text.Json;
+using Amazon.Extensions.NETCore.Setup;
+using Microsoft.AspNetCore.Http;
 
-var host = Host.CreateDefaultBuilder(args)
-    // Configura o sistema de logs estruturados em JSON para o Worker
-    .ConfigureLogging(logging =>
+var builder = WebApplication.CreateBuilder(args);
+
+// Registra o cliente SQS (o LocalStack vai injetar a URL via config)
+builder.Services.AddAWSService<IAmazonSQS>();
+
+var app = builder.Build();
+
+app.MapPost("/api/eventos", async (RawEvent rawEvent, IAmazonSQS sqsClient, IConfiguration config) =>
+{
+    // 1. Validação de Domínio (a sua classe já faz isso!)
+    var (isValid, reason) = rawEvent.Validate();
+    if (!isValid)
+        return Results.BadRequest(new { error = reason });
+
+    // 2. Envio para a Fila raw-events
+    var queueUrl = config["AWS:QueueUrl"]; // Defina isso no appsettings.json
+    var messageBody = JsonSerializer.Serialize(rawEvent);
+
+    await sqsClient.SendMessageAsync(new SendMessageRequest
     {
-        logging.ClearProviders();
-        logging.AddJsonConsole(options =>
-        {
-            options.IncludeScopes = true;
-            options.TimestampFormat = "yyyy-MM-ddTHH:mm:ssZ ";
-        });
-    })
-    .ConfigureServices((hostContext, services) =>
-    {
-        // Força o host a carregar as variáveis de ambiente injetadas pelo Docker
-        var configuration = hostContext.Configuration;
+        QueueUrl = queueUrl,
+        MessageBody = messageBody
+    });
 
-        // 1. Configuração e Injeção do cliente SQS (Mapeamento flexível para LocalStack)
-        services.AddSingleton<IAmazonSQS>(sp =>
-        {
-            var serviceUrl = configuration["AWS:ServiceURL"] ?? configuration["AWS__ServiceURL"] ?? "http://localhost:4566";
-            var region = configuration["AWS:Region"] ?? configuration["AWS__Region"] ?? "us-east-1";
+    return Results.Accepted();
+});
 
-            var config = new AmazonSQSConfig
-            {
-                ServiceURL = serviceUrl,
-                AuthenticationRegion = region
-            };
-            return new AmazonSQSClient(config);
-        });
-
-        // 2. Configuração e Injeção do cliente DynamoDB (Evita NullReference no processamento)
-        services.AddSingleton<IAmazonDynamoDB>(sp =>
-        {
-            var serviceUrl = configuration["AWS:ServiceURL"] ?? configuration["AWS__ServiceURL"] ?? "http://localhost:4566";
-            var region = configuration["AWS:Region"] ?? configuration["AWS__Region"] ?? "us-east-1";
-
-            var config = new AmazonDynamoDBConfig
-            {
-                ServiceURL = serviceUrl,
-                AuthenticationRegion = region
-            };
-            return new AmazonDynamoDBClient(config);
-        });
-
-        // 3. Registra o Worker que executa o loop de polling em background
-        services.AddHostedService<Worker>();
-    })
-    .Build();
-
-await host.RunAsync();
+app.Run();

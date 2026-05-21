@@ -1,18 +1,13 @@
-# Estágio 1: Build da aplicação usando SDK do .NET 9
+# Estágio de Build
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build-env
-WORKDIR /app
+WORKDIR /src
+COPY . .
+RUN dotnet publish -c Release -o /app/publish
 
-# Copia os arquivos de projeto (.csproj) para restaurar as dependências
-COPY services/Processor/Processor.csproj ./services/Processor/
-RUN dotnet restore ./services/Processor/Processor.csproj
-
-# Copia o restante dos fontes e compila em modo Release
-COPY services/Processor/ ./services/Processor/
-RUN dotnet publish ./services/Processor/Processor.csproj -c Release -o /app/publish
-
-# Estágio 2: Imagem final de execução ultra-leve (Runtime .NET 9)
-FROM mcr.microsoft.com/dotnet/runtime:9.0-alpine
+# Estágio de Runtime (Imagem correta com suporte ao ASP.NET)
+FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS base
 WORKDIR /app
 COPY --from=build-env /app/publish .
-
+# Como é uma API, o Kestrel escuta na 8080 por padrão
+EXPOSE 8080
 ENTRYPOINT ["dotnet", "Processor.dll"]
