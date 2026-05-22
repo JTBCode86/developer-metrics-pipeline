@@ -1,36 +1,161 @@
+using Amazon.DynamoDBv2;
+using Amazon.DynamoDBv2.Model;
+using Amazon.Extensions.NETCore.Setup;
 using Amazon.SQS;
 using Amazon.SQS.Model;
-using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.OpenApi;// Corrigido: OpenApiInfo está aqui
 using Processor.Internal.Domain;
 using System.Text.Json;
-using Amazon.Extensions.NETCore.Setup;
-using Microsoft.AspNetCore.Http;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Registra o cliente SQS (o LocalStack vai injetar a URL via config)
+// --- Configuração da Injeção de Dependência ---
+// Garante que o AWS SDK utilize as configs do appsettings.json ou variáveis de ambiente
+builder.Services.AddDefaultAWSOptions(builder.Configuration.GetAWSOptions());
 builder.Services.AddAWSService<IAmazonSQS>();
+builder.Services.AddAWSService<IAmazonDynamoDB>();
+
+// Adiciona explorador de endpoints (Obrigatório para Swagger reconhecer as rotas)
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new OpenApiInfo { Title = "Metrics Processor API", Version = "v1" });
+});
 
 var app = builder.Build();
 
-app.MapPost("/api/eventos", async (RawEvent rawEvent, IAmazonSQS sqsClient, IConfiguration config) =>
+// --- Middleware ---
+// Swagger sempre disponível em desenvolvimento
+app.UseSwagger();
+
+app.UseSwaggerUI(c =>
 {
-    // 1. Validação de Domínio (a sua classe já faz isso!)
-    var (isValid, reason) = rawEvent.Validate();
-    if (!isValid)
-        return Results.BadRequest(new { error = reason });
-
-    // 2. Envio para a Fila raw-events
-    var queueUrl = config["AWS:QueueUrl"]; // Defina isso no appsettings.json
-    var messageBody = JsonSerializer.Serialize(rawEvent);
-
-    await sqsClient.SendMessageAsync(new SendMessageRequest
-    {
-        QueueUrl = queueUrl,
-        MessageBody = messageBody
-    });
-
-    return Results.Accepted();
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "Metrics Processor API V1");
+    c.RoutePrefix = string.Empty; // Swagger na raiz
 });
+
+// --- Endpoints ---
+
+// 1. GET /health - Verifica conexões (Health Check)
+app.MapGet("/health", async ([FromServices] IAmazonSQS sqs, [FromServices] IAmazonDynamoDB db) =>
+{
+    try
+    {
+        await sqs.ListQueuesAsync(new ListQueuesRequest());
+        await db.DescribeTableAsync(new DescribeTableRequest { TableName = "MetricsTable" });
+        return Results.Ok(new { status = "UP" });
+    }
+    catch
+    {
+        return Results.Json(new { status = "DOWN" }, statusCode: 503);
+    }
+});
+
+#region Método post - Swagger
+
+// 2 POST 
+//app.MapPost("/api/eventos", async (RawEvent rawEvent, IAmazonSQS sqsClient, IConfiguration config) =>
+//{
+//    // Validação elegante (usando o método refatorado)
+//    var (isValid, reason) = rawEvent.Validate();
+//    if (!isValid)
+//        return Results.BadRequest(new { error = reason });
+
+//    var queueUrl = config["AWS:QueueUrl"];
+//    var messageBody = JsonSerializer.Serialize(rawEvent);
+
+//    await sqsClient.SendMessageAsync(new SendMessageRequest
+//    {
+//        QueueUrl = queueUrl,
+//        MessageBody = messageBody
+//    });
+
+//    return Results.Accepted();
+//})
+//.WithName("ProcessarEvento"); // Nomeia a rota para o Swagger
+
+#endregion
+
+// 3. GET /metrics/{developer_id} - Retorna todos os eventos do desenvolvedor
+app.MapGet("/metrics/{developer_id}", async (string developer_id,[FromServices] IAmazonDynamoDB dbClient,[FromServices] IConfiguration config) =>
+{
+    // Forçamos um valor padrão caso a configuração falhe
+    var tableName = "developer_summary";
+
+    if (string.IsNullOrWhiteSpace(tableName))
+        return Results.BadRequest(new { message = "Configuração 'AWS:TableName' não encontrada." });
+
+    var request = new QueryRequest
+    {
+        TableName = tableName,
+        // Removeremos o IndexName para testar a busca simples primeiro
+        KeyConditionExpression = "developer_id = :devId",
+        ExpressionAttributeValues = new Dictionary<string, AttributeValue> {
+            { ":devId", new AttributeValue { S = developer_id } }
+        }
+    };
+
+    try
+    {
+        var response = await dbClient.QueryAsync(request);
+
+        // Transformação simples para o formato limpo
+        var results = response.Items.Select(item => new {
+            developer_id = item["developer_id"].S,
+            total_commits = item.ContainsKey("total_commits") ? item["total_commits"].N : "0"
+            // Adicione aqui os outros campos que você deseja retornar
+        });
+
+        return Results.Ok(results);
+    }
+    catch (AmazonDynamoDBException ex)
+    {
+        // Isso vai nos dizer exatamente se o problema é o nome da tabela ou o índice
+        return Results.Json(new { message = ex.Message }, statusCode: 500);
+    }
+
+});
+
+// 4. GET: /metrics/{developer_id}/summary (Agregado)
+app.MapGet("/api/metrics/{developer_id}/summary", async (string developer_id, [FromServices] IAmazonDynamoDB db, IConfiguration config) =>
+{
+ 
+    var request = new GetItemRequest
+    {
+        TableName = "developer_summary",
+        Key = new Dictionary<string, AttributeValue> { { "developer_id", new AttributeValue { S = developer_id } } }
+    };
+
+    var response = await db.GetItemAsync(request);
+
+    if (!response.IsItemSet) return Results.NotFound(new { message = "Desenvolvedor não encontrado." });
+
+    // Extração dos atributos do DynamoDB
+    var item = response.Item;
+
+    // Convertendo valores (o DynamoDB retorna números como strings)
+    int totalCommits = int.Parse(item["total_commits"].N);
+    int totalPRs = int.Parse(item["total_pull_requests"].N);
+    int eventsProcessed = int.Parse(item["events_processed"].N);
+    double totalReviewTime = double.Parse(item["total_review_time_sum"].N);
+    string lastActivity = item["last_activity"].S;
+
+    // Cálculo da média sob demanda (Read-Time Aggregation)
+    double avgReviewTime = eventsProcessed > 0 ? totalReviewTime / eventsProcessed : 0;
+
+    // Retorno no formato limpo solicitado
+    return Results.Ok(new
+    {
+        developer_id = developer_id,
+        total_commits = totalCommits,
+        total_pull_requests = totalPRs,
+        avg_review_time_minutes = Math.Round(avgReviewTime, 2),
+        events_processed = eventsProcessed,
+        last_activity = lastActivity
+    });
+})
+
+.WithName("BuscarEventoPorId");
 
 app.Run();

@@ -20,7 +20,6 @@ namespace Processor
         private readonly string _processedQueueUrl;
         private readonly int _maxParallelWorkers;
 
-        // CORREÇÃO: Usando Substring clássico para compatibilidade total com SDKs antigos
         private static readonly string InstanceId = "processor-instance-" + Guid.NewGuid().ToString().Substring(0, 8);
 
         public Worker(IAmazonSQS sqsClient, IConfiguration configuration, ILogger<Worker> logger)

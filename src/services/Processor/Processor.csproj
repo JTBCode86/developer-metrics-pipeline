@@ -12,5 +12,6 @@
     <PackageReference Include="AWSSDK.Extensions.NETCore.Setup" Version="4.0.4" />
     <PackageReference Include="AWSSDK.SQS" Version="4.0.2.31" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.10" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="10.1.7" />
   </ItemGroup>
 </Project>

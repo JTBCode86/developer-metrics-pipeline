@@ -1,9 +1,9 @@
 using Aggregator;
 using Aggregator.Internal.Domain;
 using Amazon.DynamoDBv2;
-using Amazon.DynamoDBv2.DataModel; // Necessário para ScanOperator e IDynamoDBContext
+using Amazon.DynamoDBv2.DataModel; 
 using Amazon.DynamoDBv2.DocumentModel;
-using Amazon.Extensions.NETCore.Setup; // Necessário para AddAWSService
+using Amazon.Extensions.NETCore.Setup;
 using Amazon.SQS;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
@@ -21,14 +21,12 @@ builder.Services.AddHostedService<Worker>();
 
 var app = builder.Build();
 
-// 3. API REST para consulta (Requisito do Case)
+// API para Consulta (Requisito)
 // GET /metrics/{developerId}
 app.MapGet("/metrics/{developerId}", async (string developerId, IDynamoDBContext dbContext) =>
 {
-    // Exemplo de como consultar no DynamoDB usando o SDK
     var conditions = new List<ScanCondition>
     {
-        //new ScanCondition("DeveloperId", Amazon.DynamoDBv2.DataModel.ScanOperator.Equal, developerId)
         new ScanCondition("DeveloperId", ScanOperator.Equal, developerId)
     };
 
@@ -39,12 +37,25 @@ app.MapGet("/metrics/{developerId}", async (string developerId, IDynamoDBContext
 // GET /metrics/{developerId}/summary
 app.MapGet("/metrics/{developerId}/summary", async (string developerId, IDynamoDBContext dbContext) =>
 {
-    // Busca o resumo na tabela developer_summary
     var summary = await dbContext.LoadAsync<DeveloperSummary>(developerId);
 
-    return summary != null
-        ? Results.Ok(summary)
-        : Results.NotFound(new { message = "Resumo não encontrado para este desenvolvedor." });
+    if (summary == null)
+        return Results.NotFound(new { message = "Resumo não encontrado." });
+
+    // Cálculo da média na hora da leitura
+    double avgReviewTime = summary.EventsProcessed > 0
+        ? summary.TotalReviewTimeSum / summary.EventsProcessed
+        : 0;
+
+    // Retorno customizado (Polimento)
+    return Results.Ok(new
+    {
+        developer_id = summary.DeveloperId,
+        total_commits = summary.TotalCommits,
+        total_pull_requests = summary.TotalPullRequests,
+        avg_review_time_minutes = Math.Round(avgReviewTime, 2),
+        last_activity = summary.LastActivity
+    });
 });
 
 // GET /health

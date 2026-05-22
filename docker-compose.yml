@@ -38,6 +38,7 @@ services:
       - AWS_SECRET_ACCESS_KEY=mock_secret
       - AWS__QueueUrl=http://localstack:4566/000000000000/raw-events # Nova config para o Program.cs
       - QueueSettings__RawEventsQueueName=raw-events
+      - ASPNETCORE_ENVIRONMENT=Development
     depends_on:
       localstack:
         condition: service_healthy

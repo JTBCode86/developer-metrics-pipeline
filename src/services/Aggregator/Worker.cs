@@ -29,9 +29,6 @@ namespace Aggregator
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
             var baseUrl = configuration["AWS:ServiceURL"] ?? configuration["AWS__ServiceURL"] ?? "http://localstack:4566";
-            // _queueUrl = configuration["QueueSettings__ProcessedEventsQueueName"];
-            // _queueUrl = $"{baseUrl}/000000000000/{_queueUrl}";
-            //_logger.LogInformation("DEBUG: O nome da fila lido da configuração é: {NomeFila}", _queueUrl); // ADICIONE ESTE LOG
             _queueUrl = $"{baseUrl}/000000000000/raw-events";
         }
 
@@ -59,7 +56,6 @@ namespace Aggregator
                         {
                             try
                             {
-                                //_logger.LogInformation("DEBUG: Conteúdo bruto da mensagem: {Body}", message.Body);
                                 using (JsonDocument doc = JsonDocument.Parse(message.Body))
                                 {
                                     JsonElement root = doc.RootElement;
@@ -71,8 +67,6 @@ namespace Aggregator
                                     double value = root.GetProperty("value").GetDouble();
                                     string repository = root.GetProperty("repository").GetString();
                                     DateTime timestamp = root.GetProperty("timestamp").GetDateTime();
-
-                                    _logger.LogInformation("DEBUG MANUAL: Extração concluída - EventId={Id}", eventId);
 
                                     // Criando o objeto manualmente com os dados extraídos
                                     var processedEvent = new ProcessedEvent
