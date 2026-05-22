@@ -1,5 +1,9 @@
 # Developer Metrics Pipeline
 
+![.NET 9](https://img.shields.io/badge/.NET-9-blue.svg)
+![Docker](https://img.shields.io/badge/Docker-Enabled-brightgreen.svg)
+![Architecture](https://img.shields.io/badge/Architecture-EDA-orange.svg)
+
 Pipeline de dados orientado a eventos (EDA) desenvolvido em **.NET 8** para coleta, processamento e agregação de métricas de produtividade de desenvolvedores em tempo real.
 
 ## 📋 Pré-requisitos
@@ -58,14 +62,17 @@ docker-compose up --build
 * **Carga Inicial:** Disparo do *seed* de eventos conforme requisitos do projeto.
 * **Execução:** Inicialização de todos os serviços (Workers) prontos para processar os dados.
 
-## 📝 API de Métricas e Observabilidade
-O sistema disponibiliza uma interface REST para consulta em tempo real das métricas processadas.
+## 📝 Documentação da API (Swagger/OpenAPI)
+O sistema expõe sua interface de integração através do **Swagger**, permitindo a exploração visual e o teste dos contratos de dados em tempo real.
 
-* **Swagger (OpenAPI):** Após subir o ambiente via Docker, acesse `http://localhost:5000/swagger` para explorar e testar os endpoints interativamente.
-* **Endpoints Principais:**
-    * `GET /health`: Endpoint de *Health Check* para monitoramento de disponibilidade do serviço.
-    * `GET /metrics/{developer_id}`: Retorna a lista completa de eventos brutos processados para um desenvolvedor específico.
-    * `GET /metrics/{developer_id}/summary`: Retorna o resumo consolidado com totais e a média de tempo de review calculada sob demanda.
+* **Interface:** Após subir o ambiente via Docker, acesse `http://localhost:5000/swagger`.
+* **Projeto:** **Metrics Processor API** (v1)
+* **Endpoints Disponíveis:**
+    * `GET /health`: Monitoramento de prontidão (*Health Check*).
+    * `GET /metrics/{developer_id}`: Recuperação de eventos brutos processados.
+    * `GET /metrics/{developer_id}/summary`: Consulta consolidada com métricas agregadas e cálculo de média sob demanda.
+
+> **Dica:** A documentação interativa é gerada dinamicamente, garantindo que o contrato de integração esteja sempre atualizado com a implementação do código.
 
 ## 📚 Referência Técnica: Swagger (OpenAPI)
 
