@@ -4,6 +4,8 @@
 ![Docker](https://img.shields.io/badge/Docker-Enabled-brightgreen.svg)
 ![Architecture](https://img.shields.io/badge/Architecture-EDA-orange.svg)
 
+Pipeline de dados orientado a eventos (EDA) desenvolvido em **.NET 9** para coleta, processamento e agregação de métricas de produtividade de desenvolvedores em tempo real.
+
 Pipeline de dados orientado a eventos (EDA) desenvolvido em **.NET 8** para coleta, processamento e agregação de métricas de produtividade de desenvolvedores em tempo real.
 
 ## 📋 Pré-requisitos
@@ -15,6 +17,14 @@ Para executar este projeto, você precisará dos seguintes softwares instalados 
 
 *Certifique-se de que o Docker esteja em execução antes de iniciar o projeto.*
 
+## 🛠️ Stack Tecnológica
+* **Linguagem:** C# (.NET 9)
+* **Padrão:** BackgroundServices (Worker SDK)
+* **Orquestração:** Docker & Docker Compose
+* **Mensageria:** Amazon SQS
+* **Persistência:** Amazon DynamoDB
+* **Ambiente Local:** **LocalStack** (Emulação completa e isolada dos serviços AWS, garantindo consistência total do ambiente de desenvolvimento).
+  
 ## 🏗️ Arquitetura do Sistema
 O sistema foi projetado seguindo princípios de **Event-Driven Architecture (EDA)**, focando em escalabilidade e resiliência:
 
@@ -29,14 +39,21 @@ O projeto foi estruturado seguindo princípios de **Clean Architecture** e **SOL
 * **Separation of Concerns (SoC):** Cada *Worker* possui responsabilidade única (*Single Responsibility Principle*). O `Processor` preocupa-se estritamente com validação e enriquecimento, enquanto o `Aggregator` foca exclusivamente na consolidação e persistência dos dados.
 * **Testabilidade:** A separação entre o domínio (contratos de métricas) e a infraestrutura facilita a criação de testes unitários para a regra de negócio.
 
-## 🛠️ Stack Tecnológica
-* **Linguagem:** C# (.NET 9)
-* **Padrão:** BackgroundServices (Worker SDK)
-* **Orquestração:** Docker & Docker Compose
-* **Mensageria:** Amazon SQS
-* **Persistência:** Amazon DynamoDB
-* **Ambiente Local:** **LocalStack** (Emulação completa e isolada dos serviços AWS, garantindo consistência total do ambiente de desenvolvimento).
+## 📐 Fluxo de Arquitetura
 
+O desenho abaixo ilustra a jornada da métrica desde a entrada do dado até a consulta na API:
+
+```mermaid
+graph LR
+    A[Produtor de Métricas] -->|Evento| B(SQS: Fila de Eventos)
+    B -->|Consume| C[Processor Worker]
+    C -->|Valida/Enriquece| D(SQS: Fila Processada)
+    D -->|Consume| E[Aggregator Worker]
+    E -->|Persiste| F[(DynamoDB)]
+    G[API - Swagger] -->|Consulta| F
+
+```
+  
 ---
 
 ## 🚀 Como Executar o Projeto
@@ -72,7 +89,14 @@ O sistema expõe sua interface de integração através do **Swagger**, permitin
     * `GET /metrics/{developer_id}`: Recuperação de eventos brutos processados.
     * `GET /metrics/{developer_id}/summary`: Consulta consolidada com métricas agregadas e cálculo de média sob demanda.
 
-> **Dica:** A documentação interativa é gerada dinamicamente, garantindo que o contrato de integração esteja sempre atualizado com a implementação do código.
+ *Dica:* A documentação interativa é gerada dinamicamente, garantindo que o contrato de integração esteja sempre atualizado com a implementação do código.*
+
+## 📊 Observabilidade e Monitoramento
+A observabilidade é unificada no terminal do Docker, permitindo o acompanhamento em tempo real:
+
+* **Processor:** Log detalhado de validação de contratos e enriquecimento de eventos (UUID v4).
+* **Aggregator:** Processamento assíncrono e exibição de métricas persistidas.
+* **API de Consulta:** Interface REST (via Swagger) para consulta em tempo real das métricas agregadas por desenvolvedor, com cálculos de performance realizados no momento da leitura.
 
 ## 📚 Referência Técnica: Swagger (OpenAPI)
 
@@ -90,13 +114,6 @@ Para facilitar a integração e o teste dos endpoints, este projeto utiliza o **
 3. Clique em **"Try it out"**.
 4. Informe o ID do desenvolvedor e clique em **"Execute"** para ver o resultado em tempo real.
    
-## 📊 Observabilidade e Monitoramento
-A observabilidade é unificada no terminal do Docker, permitindo o acompanhamento em tempo real:
-
-* **Processor:** Log detalhado de validação de contratos e enriquecimento de eventos (UUID v4).
-* **Aggregator:** Processamento assíncrono e exibição de métricas persistidas.
-* **API de Consulta:** Interface REST (via Swagger) para consulta em tempo real das métricas agregadas por desenvolvedor, com cálculos de performance realizados no momento da leitura.
-
 ## 🛡️ Engenharia e Boas Práticas
 * **Resiliência:** Processamento *At-Least-Once*.
 * **Concorrência:** Gerenciamento seguro de estado via coleções concorrentes.
