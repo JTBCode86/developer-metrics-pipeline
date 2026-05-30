@@ -88,7 +88,7 @@ Este projeto utiliza o **Swagger (OpenAPI)** para documentação de contrato. Es
 ### Como utilizar em desenvolvimento
 Após subir o ambiente via Docker (`docker-compose up`), a documentação interativa estará disponível para exploração e testes:
 
-1. **Acesso:** Abra `http://localhost:5000/swagger` no seu navegador.
+1. **Acesso:** Acesse `http://localhost:5000/swagger` no seu navegador.
 2. **Exploração:** Visualize todos os verbos HTTP disponíveis e os modelos de dados (schemas).
 3. **Teste em tempo real:**
     * Clique no endpoint desejado (ex: `/metrics/{developer_id}/summary`).
