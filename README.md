@@ -78,14 +78,27 @@ docker-compose up --build
 * **Execução:** Inicialização de todos os serviços (Workers) prontos para processar os dados.
 
 ## 📝 Documentação da API (Swagger/OpenAPI)
-O sistema expõe sua interface de integração através do **Swagger**, permitindo a exploração visual e o teste dos contratos de dados em tempo real.
 
-* **Interface:** Após subir o ambiente via Docker, acesse `http://localhost:5000/swagger`.
-* **Projeto:** **Metrics Processor API** (v1)
-* **Endpoints Disponíveis:**
-    * `GET /health`: Monitoramento de prontidão (*Health Check*).
-    * `GET /metrics/{developer_id}`: Recuperação de eventos brutos processados.
-    * `GET /metrics/{developer_id}/summary`: Consulta consolidada com métricas agregadas e cálculo de média sob demanda.
+Este projeto utiliza o **Swagger (OpenAPI)** para documentação de contrato. Esta escolha estratégica garante que a documentação reflita exatamente o estado atual do código, eliminando discrepâncias entre o que está implementado e o que está disponível.
+
+### Por que esta abordagem?
+* **Sincronização:** O contrato de dados (schemas) é exposto automaticamente, permitindo que consumidores da API entendam os tipos de dados e obrigatoriedades antes mesmo de realizarem a integração.
+* **Autonomia:** Desenvolvedores podem explorar e validar comportamentos da API diretamente pela interface interativa, reduzindo drasticamente o tempo de *debug* e testes de integração.
+
+### Como utilizar em desenvolvimento
+Após subir o ambiente via Docker (`docker-compose up`), a documentação interativa estará disponível para exploração e testes:
+
+1. **Acesso:** Abra `http://localhost:5000/swagger` no seu navegador.
+2. **Exploração:** Visualize todos os verbos HTTP disponíveis e os modelos de dados (schemas).
+3. **Teste em tempo real:**
+    * Clique no endpoint desejado (ex: `/metrics/{developer_id}/summary`).
+    * Clique no botão **"Try it out"**.
+    * Informe o parâmetro necessário (ex: `developer_id`) e clique em **"Execute"** para ver a resposta formatada em JSON.
+
+**Endpoints Principais:**
+* `GET /health`: Monitoramento de prontidão (*Health Check*).
+* `GET /metrics/{developer_id}`: Recuperação de eventos brutos processados.
+* `GET /metrics/{developer_id}/summary`: Consulta consolidada com métricas agregadas e cálculo de média sob demanda.
 
  *Dica:* A documentação interativa é gerada dinamicamente, garantindo que o contrato de integração esteja sempre atualizado com a implementação do código.*
 
@@ -96,22 +109,6 @@ A observabilidade é unificada no terminal do Docker, permitindo o acompanhament
 * **Aggregator:** Processamento assíncrono e exibição de métricas persistidas.
 * **API de Consulta:** Interface REST (via Swagger) para consulta em tempo real das métricas agregadas por desenvolvedor, com cálculos de performance realizados no momento da leitura.
 
-## 📚 Referência Técnica: Swagger (OpenAPI)
-
-Para facilitar a integração e o teste dos endpoints, este projeto utiliza o **Swagger (OpenAPI)**. Ele gera automaticamente uma documentação interativa baseada nos *endpoints* definidos na aplicação.
-
-**Principais funcionalidades documentadas:**
-
-* **Exploração:** Visualização de todos os verbos HTTP disponíveis (`GET`).
-* **Teste em tempo real:** Permite disparar requisições diretamente pela interface, preenchendo os parâmetros de rota (`developer_id`) e recebendo a resposta formatada em JSON.
-* **Contrato de Dados:** Define os modelos esperados, garantindo que qualquer desenvolvedor que consuma a API saiba exatamente a estrutura (*schema*) do objeto que será retornado.
-
-**Como utilizar em desenvolvimento:**
-1. Com o projeto em execução (`docker-compose up`), acesse o endereço da porta exposta (ex: `http://localhost:5000/swagger`).
-2. Clique no endpoint desejado (ex: `/metrics/{developer_id}/summary`).
-3. Clique em **"Try it out"**.
-4. Informe o ID do desenvolvedor e clique em **"Execute"** para ver o resultado em tempo real.
-   
 ## 🛡️ Engenharia e Boas Práticas
 * **Resiliência:** Processamento *At-Least-Once*.
 * **Concorrência:** Gerenciamento seguro de estado via coleções concorrentes.
