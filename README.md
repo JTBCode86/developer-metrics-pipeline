@@ -6,8 +6,6 @@
 
 Pipeline de dados orientado a eventos (EDA) desenvolvido em **.NET 9** para coleta, processamento e agregação de métricas de produtividade de desenvolvedores em tempo real.
 
-Pipeline de dados orientado a eventos (EDA) desenvolvido em **.NET 8** para coleta, processamento e agregação de métricas de produtividade de desenvolvedores em tempo real.
-
 ## 📋 Pré-requisitos
 Para executar este projeto, você precisará dos seguintes softwares instalados em sua máquina:
 
