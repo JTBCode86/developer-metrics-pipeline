@@ -154,44 +154,46 @@ namespace Aggregator
 
         private async Task updateDeveloperSummaryAsync(ProcessedEvent ev, CancellationToken cancellationToken)
         {
-            var getRequest = new GetItemRequest
+            // Mapeamos qual campo deve ser incrementado baseando-se no tipo da métrica
+            string metricField = ev.MetricType switch
             {
-                TableName = "developer_summary",
-                Key = new Dictionary<string, AttributeValue> { { "developer_id", new AttributeValue { S = ev.DeveloperId } } }
+                "commit" => "total_commits",
+                "pull_request" => "total_pull_requests",
+                "review_time" => "total_review_time_sum",
+                _ => "other_metrics" // fallback para contagem genérica
             };
 
-            var getResponse = await _dynamoDb.GetItemAsync(getRequest, cancellationToken);
-            var summary = new DeveloperSummary { DeveloperId = ev.DeveloperId };
-
-            if (getResponse.IsItemSet)
-            {
-                summary.TotalCommits = int.Parse(getResponse.Item["total_commits"].N);
-                summary.TotalPullRequests = int.Parse(getResponse.Item["total_pull_requests"].N);
-                summary.AvgReviewTimeMinutes = double.Parse(getResponse.Item["avg_review_time_minutes"].N);
-                summary.EventsProcessed = int.Parse(getResponse.Item["events_processed"].N);
-                summary.LastActivity = DateTime.Parse(getResponse.Item["last_activity"].S);
-
-                if (getResponse.Item.TryGetValue("total_review_time_sum", out var reviewSumAttr))
-                    summary.TotalReviewTimeSum = double.Parse(reviewSumAttr.N);
-            }
-
-            summary.UpdateMetrics(ev.MetricType, ev.Value, ev.Timestamp);
-
-            var putRequest = new PutItemRequest
+            var request = new UpdateItemRequest
             {
                 TableName = "developer_summary",
-                Item = new Dictionary<string, AttributeValue>
+                Key = new Dictionary<string, AttributeValue> { { "developer_id", new AttributeValue { S = ev.DeveloperId } } },
+
+                // A lógica atômica: ADD soma o valor, SET atualiza a data da última atividade
+                UpdateExpression = "ADD #field :inc, events_processed :one SET last_activity = :now",
+                
+                ExpressionAttributeNames = new Dictionary<string, string>
                 {
-                    { "developer_id", new AttributeValue { S = summary.DeveloperId } },
-                    { "total_commits", new AttributeValue { N = summary.TotalCommits.ToString() } },
-                    { "total_pull_requests", new AttributeValue { N = summary.TotalPullRequests.ToString() } },
-                    { "avg_review_time_minutes", new AttributeValue { N = summary.AvgReviewTimeMinutes.ToString().Replace(",", ".") } },
-                    { "events_processed", new AttributeValue { N = summary.EventsProcessed.ToString() } },
-                    { "last_activity", new AttributeValue { S = summary.LastActivity.ToString("yyyy-MM-ddTHH:mm:ssZ") } },
-                    { "total_review_time_sum", new AttributeValue { N = summary.TotalReviewTimeSum.ToString().Replace(",", ".") } }
+                    { "#field", metricField }
+                },
+
+                ExpressionAttributeValues = new Dictionary<string, AttributeValue>
+                {
+                    { ":inc", new AttributeValue { N = ev.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) } },
+                    { ":one", new AttributeValue { N = "1" } },
+                    { ":now", new AttributeValue { S = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ") } }
                 }
             };
-            await _dynamoDb.PutItemAsync(putRequest, cancellationToken);
+
+            try
+            {
+                await _dynamoDb.UpdateItemAsync(request, cancellationToken);
+                _logger.LogInformation("Métricas de {DevId} atualizadas atomicamente. Campo: {Field}", ev.DeveloperId, metricField);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erro na atualização atômica do DynamoDB para o desenvolvedor {DevId}", ev.DeveloperId);
+                throw; // Importante: relançar a exceção para o worker tratar o retry (Backoff)
+            }
         }
     }
 }
