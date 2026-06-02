@@ -19,6 +19,7 @@ namespace Processor
         private readonly string _rawQueueUrl;
         private readonly string _processedQueueUrl;
         private readonly int _maxParallelWorkers;
+        private readonly string _dlqQueueUrl;
 
         private static readonly string InstanceId = "processor-instance-" + Guid.NewGuid().ToString().Substring(0, 8);
 
@@ -84,11 +85,24 @@ namespace Processor
 
                                         var (isValid, failureReason) = rawEvent.Validate();
 
+                                        // Antes da validação
+                                        _logger.LogInformation("Processando mensagem: {Body}", message.Body);
+
                                         if (!isValid)
                                         {
-                                            _logger.LogWarning("Evento rejeitado na validacao. Motivo: {FailureReason}", failureReason);
-                                            await _sqsClient.DeleteMessageAsync(_rawQueueUrl, message.ReceiptHandle, stoppingToken);
-                                            return;
+                                            //_logger.LogWarning("Evento rejeitado na validacao. Motivo: {FailureReason}", failureReason);
+                                            //await _sqsClient.DeleteMessageAsync(_rawQueueUrl, message.ReceiptHandle, stoppingToken);
+                                            //return;
+
+                                            //_logger.LogWarning("Evento rejeitado. Enviando para DLQ. Motivo: {FailureReason}", failureReason);
+                                            //await _sqsClient.SendMessageAsync(_dlqQueueUrl, message.Body, stoppingToken);
+                                            //await _sqsClient.DeleteMessageAsync(_rawQueueUrl, message.ReceiptHandle, stoppingToken);
+
+                                            _logger.LogError("Validação falhou para evento. Enviando para DLQ...");
+                                            await _sqsClient.SendMessageAsync(_dlqQueueUrl, message.Body, stoppingToken);
+                                            _logger.LogInformation("Mensagem enviada para DLQ com sucesso.");
+                                            //return;
+
                                         }
 
                                         var processedEvent = new ProcessedEvent

@@ -170,10 +170,12 @@ namespace Aggregator
 
                 // A lógica atômica: ADD soma o valor, SET atualiza a data da última atividade
                 UpdateExpression = "ADD #field :inc, events_processed :one SET last_activity = :now",
-                
+                ConditionExpression = "attribute_not_exists(processed_events.#eventId)",
+
                 ExpressionAttributeNames = new Dictionary<string, string>
                 {
-                    { "#field", metricField }
+                    { "#field", metricField },
+                    { "#eventId", ev.EventId }
                 },
 
                 ExpressionAttributeValues = new Dictionary<string, AttributeValue>
