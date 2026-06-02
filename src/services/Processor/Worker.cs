@@ -77,7 +77,7 @@ namespace Processor
 
                                         if (rawEvent == null) 
                                         {
-                                            throw (new Exception("Teste"));//continue;
+                                            return;
                                         }
                                         
                                         _logger.LogInformation("Mensagem capturada na fila raw-events.");
@@ -87,6 +87,8 @@ namespace Processor
                                         if (!isValid)
                                         {
                                             _logger.LogWarning("Evento rejeitado na validacao. Motivo: {FailureReason}", failureReason);
+                                            await _sqsClient.DeleteMessageAsync(_rawQueueUrl, message.ReceiptHandle, stoppingToken);
+                                            return;
                                         }
 
                                         var processedEvent = new ProcessedEvent
