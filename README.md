@@ -4,7 +4,7 @@
 ![Docker](https://img.shields.io/badge/Docker-Enabled-brightgreen.svg)
 ![Architecture](https://img.shields.io/badge/Architecture-EDA-orange.svg)
 
-Pipeline de dados orientado a eventos (EDA) desenvolvido em **.NET 8** para coleta, processamento e agregação de métricas de produtividade de desenvolvedores em tempo real.
+Pipeline de dados orientado a eventos (EDA) desenvolvido em **.NET 9** para coleta, processamento e agregação de métricas de produtividade de desenvolvedores em tempo real.
 
 ## 📋 Pré-requisitos
 Para executar este projeto, você precisará dos seguintes softwares instalados em sua máquina:
@@ -15,6 +15,14 @@ Para executar este projeto, você precisará dos seguintes softwares instalados 
 
 *Certifique-se de que o Docker esteja em execução antes de iniciar o projeto.*
 
+## 🛠️ Stack Tecnológica
+* **Linguagem:** C# (.NET 9)
+* **Padrão:** BackgroundServices (Worker SDK)
+* **Orquestração:** Docker & Docker Compose
+* **Mensageria:** Amazon SQS
+* **Persistência:** Amazon DynamoDB
+* **Ambiente Local:** **LocalStack** (Emulação completa e isolada dos serviços AWS, garantindo consistência total do ambiente de desenvolvimento).
+  
 ## 🏗️ Arquitetura do Sistema
 O sistema foi projetado seguindo princípios de **Event-Driven Architecture (EDA)**, focando em escalabilidade e resiliência:
 
@@ -29,14 +37,21 @@ O projeto foi estruturado seguindo princípios de **Clean Architecture** e **SOL
 * **Separation of Concerns (SoC):** Cada *Worker* possui responsabilidade única (*Single Responsibility Principle*). O `Processor` preocupa-se estritamente com validação e enriquecimento, enquanto o `Aggregator` foca exclusivamente na consolidação e persistência dos dados.
 * **Testabilidade:** A separação entre o domínio (contratos de métricas) e a infraestrutura facilita a criação de testes unitários para a regra de negócio.
 
-## 🛠️ Stack Tecnológica
-* **Linguagem:** C# (.NET 9)
-* **Padrão:** BackgroundServices (Worker SDK)
-* **Orquestração:** Docker & Docker Compose
-* **Mensageria:** Amazon SQS
-* **Persistência:** Amazon DynamoDB
-* **Ambiente Local:** **LocalStack** (Emulação completa e isolada dos serviços AWS, garantindo consistência total do ambiente de desenvolvimento).
+## 📐 Fluxo de Arquitetura
 
+O desenho abaixo ilustra a jornada da métrica desde a entrada do dado até a consulta na API:
+
+```mermaid
+graph LR
+    A[Produtor de Métricas] -->|Evento| B(SQS: Fila de Eventos)
+    B -->|Consume| C[Processor Worker]
+    C -->|Valida/Enriquece| D(SQS: Fila Processada)
+    D -->|Consume| E[Aggregator Worker]
+    E -->|Persiste| F[(DynamoDB)]
+    G[API - Swagger] -->|Consulta| F
+
+```
+  
 ---
 
 ## 🚀 Como Executar o Projeto
@@ -63,33 +78,30 @@ docker-compose up --build
 * **Execução:** Inicialização de todos os serviços (Workers) prontos para processar os dados.
 
 ## 📝 Documentação da API (Swagger/OpenAPI)
-O sistema expõe sua interface de integração através do **Swagger**, permitindo a exploração visual e o teste dos contratos de dados em tempo real.
 
-* **Interface:** Após subir o ambiente via Docker, acesse `http://localhost:5000/swagger`.
-* **Projeto:** **Metrics Processor API** (v1)
-* **Endpoints Disponíveis:**
-    * `GET /health`: Monitoramento de prontidão (*Health Check*).
-    * `GET /metrics/{developer_id}`: Recuperação de eventos brutos processados.
-    * `GET /metrics/{developer_id}/summary`: Consulta consolidada com métricas agregadas e cálculo de média sob demanda.
+Este projeto utiliza o **Swagger (OpenAPI)** para documentação de contrato. Esta escolha estratégica garante que a documentação reflita exatamente o estado atual do código, eliminando discrepâncias entre o que está implementado e o que está disponível.
 
-> **Dica:** A documentação interativa é gerada dinamicamente, garantindo que o contrato de integração esteja sempre atualizado com a implementação do código.
+### Por que esta abordagem?
+* **Sincronização:** O contrato de dados (schemas) é exposto automaticamente, permitindo que consumidores da API entendam os tipos de dados e obrigatoriedades antes mesmo de realizarem a integração.
+* **Autonomia:** Desenvolvedores podem explorar e validar comportamentos da API diretamente pela interface interativa, reduzindo drasticamente o tempo de *debug* e testes de integração.
 
-## 📚 Referência Técnica: Swagger (OpenAPI)
+### Como utilizar em desenvolvimento
+Após subir o ambiente via Docker (`docker-compose up`), a documentação interativa estará disponível para exploração e testes:
 
-Para facilitar a integração e o teste dos endpoints, este projeto utiliza o **Swagger (OpenAPI)**. Ele gera automaticamente uma documentação interativa baseada nos *endpoints* definidos na aplicação.
+1. **Acesso:** Acesse `http://localhost:5000/swagger` no seu navegador.
+2. **Exploração:** Visualize todos os verbos HTTP disponíveis e os modelos de dados (schemas).
+3. **Teste em tempo real:**
+    * Clique no endpoint desejado (ex: `/metrics/{developer_id}/summary`).
+    * Clique no botão **"Try it out"**.
+    * Informe o parâmetro necessário (ex: `developer_id`) e clique em **"Execute"** para ver a resposta formatada em JSON.
 
-**Principais funcionalidades documentadas:**
+**Endpoints Principais:**
+* `GET /health`: Monitoramento de prontidão (*Health Check*).
+* `GET /metrics/{developer_id}`: Recuperação de eventos brutos processados.
+* `GET /metrics/{developer_id}/summary`: Consulta consolidada com métricas agregadas e cálculo de média sob demanda.
 
-* **Exploração:** Visualização de todos os verbos HTTP disponíveis (`GET`).
-* **Teste em tempo real:** Permite disparar requisições diretamente pela interface, preenchendo os parâmetros de rota (`developer_id`) e recebendo a resposta formatada em JSON.
-* **Contrato de Dados:** Define os modelos esperados, garantindo que qualquer desenvolvedor que consuma a API saiba exatamente a estrutura (*schema*) do objeto que será retornado.
+ *Dica:* A documentação interativa é gerada dinamicamente, garantindo que o contrato de integração esteja sempre atualizado com a implementação do código.*
 
-**Como utilizar em desenvolvimento:**
-1. Com o projeto em execução (`docker-compose up`), acesse o endereço da porta exposta (ex: `http://localhost:5000/swagger`).
-2. Clique no endpoint desejado (ex: `/metrics/{developer_id}/summary`).
-3. Clique em **"Try it out"**.
-4. Informe o ID do desenvolvedor e clique em **"Execute"** para ver o resultado em tempo real.
-   
 ## 📊 Observabilidade e Monitoramento
 A observabilidade é unificada no terminal do Docker, permitindo o acompanhamento em tempo real:
 
