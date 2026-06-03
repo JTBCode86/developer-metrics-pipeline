@@ -37,18 +37,36 @@ O projeto foi estruturado seguindo princípios de **Clean Architecture** e **SOL
 * **Separation of Concerns (SoC):** Cada *Worker* possui responsabilidade única (*Single Responsibility Principle*). O `Processor` preocupa-se estritamente com validação e enriquecimento, enquanto o `Aggregator` foca exclusivamente na consolidação e persistência dos dados.
 * **Testabilidade:** A separação entre o domínio (contratos de métricas) e a infraestrutura facilita a criação de testes unitários para a regra de negócio.
 
-## 📐 Fluxo de Arquitetura
+## 🚀 Melhorias de Arquitetura e Engenharia
 
-O desenho abaixo ilustra a jornada da métrica desde a entrada do dado até a consulta na API:
+Para garantir resiliência e integridade dos dados sob alta carga, o projeto passou por uma refatoração focada em padrões de sistemas distribuídos:
 
+### 1. Atomicidade e Consistência (Database-as-the-Brain)
+* **Problema:** O padrão original *Get-Modify-Put* sofria de *Race Conditions*, onde atualizações simultâneas causavam perda de dados.
+* **Solução:** Implementamos operações atômicas via `UpdateExpression` (`ADD`) no DynamoDB. Agora, a lógica de soma é processada nativamente pelo banco de dados, garantindo consistência total mesmo com múltiplas instâncias do Worker acessando o mesmo registro simultaneamente.
+
+### 2. Idempotência Nativa
+* **Problema:** Sistemas de mensageria (como SQS) garantem entrega "pelo menos uma vez", o que inevitavelmente gera duplicatas.
+* **Solução:** Utilizamos `ConditionExpressions` nas operações de atualização (`attribute_not_exists`). Isso garante que cada `event_id` seja processado exatamente uma vez, bloqueando qualquer reprocessamento indevido sem a necessidade de chamadas de leitura (*GetItem*) extras, otimizando o consumo de custos (RCU/WCU).
+
+### 3. Resiliência e Observabilidade (DLQ)
+* **Problema:** Mensagens inválidas bloqueavam o fluxo de processamento ou eram descartadas silenciosamente.
+* **Solução:** Adicionamos uma **Dead Letter Queue (DLQ)**. Eventos que falham na validação de esquema são automaticamente desviados para uma fila de análise (`raw-events-dlq`), permitindo auditoria e depuração sem interromper o pipeline principal.
+
+### 4. Monitoramento e Diagnóstico
+* Logs estruturados utilizando `BeginScope` para rastreabilidade de `EventId`.
+* Tratamento de *Graceful Shutdown* para garantir que todas as mensagens em processamento sejam finalizadas ou tratadas corretamente antes do encerramento do container.
+
+---
+
+### Fluxo do Pipeline
 ```mermaid
 graph LR
-    A[Produtor de Métricas] -->|Evento| B(SQS: Fila de Eventos)
-    B -->|Consume| C[Processor Worker]
-    C -->|Valida/Enriquece| D(SQS: Fila Processada)
-    D -->|Consume| E[Aggregator Worker]
-    E -->|Persiste| F[(DynamoDB)]
-    G[API - Swagger] -->|Consulta| F
+    A[Raw Queue] --> B{Processor}
+    B -->|Inválido| C[DLQ]
+    B -->|Válido| D[Processed Queue]
+    D --> E{Aggregator}
+    E -->|Update Atômico| F[(DynamoDB)]
 
 ```
   
