@@ -52,30 +52,21 @@ app.MapGet("/health", async ([FromServices] IAmazonSQS sqs, [FromServices] IAmaz
     }
 });
 
-#region Método post - Swagger
+// 2. POST
+app.MapPost("/api/eventos", async (RawEvent rawEvent, [FromServices] IAmazonSQS sqsClient, [FromServices] IConfiguration config) =>
+{
+    var queueUrl = config["AWS:QueueUrl"];
+    var messageBody = JsonSerializer.Serialize(rawEvent);
 
-// 2 POST 
-//app.MapPost("/api/eventos", async (RawEvent rawEvent, IAmazonSQS sqsClient, IConfiguration config) =>
-//{
-//    // Validação elegante (usando o método refatorado)
-//    var (isValid, reason) = rawEvent.Validate();
-//    if (!isValid)
-//        return Results.BadRequest(new { error = reason });
+    await sqsClient.SendMessageAsync(new SendMessageRequest
+    {
+        QueueUrl = queueUrl,
+        MessageBody = messageBody
+    });
 
-//    var queueUrl = config["AWS:QueueUrl"];
-//    var messageBody = JsonSerializer.Serialize(rawEvent);
-
-//    await sqsClient.SendMessageAsync(new SendMessageRequest
-//    {
-//        QueueUrl = queueUrl,
-//        MessageBody = messageBody
-//    });
-
-//    return Results.Accepted();
-//})
-//.WithName("ProcessarEvento"); // Nomeia a rota para o Swagger
-
-#endregion
+    return Results.Accepted();
+})
+.WithName("ProcessarEvento");
 
 // 3. GET /metrics/{developer_id} - Retorna todos os eventos do desenvolvedor
 app.MapGet("/metrics/{developer_id}", async (string developer_id,[FromServices] IAmazonDynamoDB dbClient,[FromServices] IConfiguration config) =>
@@ -134,7 +125,8 @@ app.MapGet("/api/metrics/{developer_id}/summary", async (string developer_id, [F
     var item = response.Item;
 
     // Função auxiliar para evitar KeyNotFoundException
-    string GetVal(string key) => item.ContainsKey(key) ? item[key].N : "0";
+    //string GetVal(string key) => item.ContainsKey(key) ? item[key].N : "0";
+    string GetVal(string key) => item.TryGetValue(key, out var val) ? val.N : "0";
 
     // Extração segura
     int totalCommits = int.Parse(GetVal("total_commits"));
@@ -156,28 +148,6 @@ app.MapGet("/api/metrics/{developer_id}/summary", async (string developer_id, [F
         events_processed = eventsProcessed,
         last_activity = lastActivity
     });
-
-
-    // Convertendo valores (o DynamoDB retorna números como strings)
-    //int totalCommits = int.Parse(item["total_commits"].N);
-    //int totalPRs = int.Parse(item["total_pull_requests"].N);
-    //int eventsProcessed = int.Parse(item["events_processed"].N);
-    //double totalReviewTime = double.Parse(item["total_review_time_sum"].N);
-    //string lastActivity = item["last_activity"].S;
-
-    // Cálculo da média sob demanda (Read-Time Aggregation)
-    //double avgReviewTime = eventsProcessed > 0 ? totalReviewTime / eventsProcessed : 0;
-
-    // Retorno no formato limpo solicitado
-    //return Results.Ok(new
-    //{
-    //    developer_id = developer_id,
-    //    total_commits = totalCommits,
-    //    total_pull_requests = totalPRs,
-    //    avg_review_time_minutes = Math.Round(avgReviewTime, 2),
-    //    events_processed = eventsProcessed,
-    //    last_activity = lastActivity
-    //});
 })
 
 .WithName("BuscarEventoPorId");

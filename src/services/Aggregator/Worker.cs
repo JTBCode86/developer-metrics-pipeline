@@ -7,7 +7,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System;
-using System.Buffers.Text;
 using System.Collections.Generic;
 using System.Text.Json;
 using System.Threading;
@@ -34,150 +33,77 @@ namespace Aggregator
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            _logger.LogInformation("Aggregator Worker iniciado e ouvindo a fila processed-events.");
+            _logger.LogInformation("Aggregator Worker iniciado.");
             await Task.Delay(10000, stoppingToken);
-            _logger.LogInformation("Infraestrutura pronta. Iniciando Worker...");
 
             while (!stoppingToken.IsCancellationRequested)
             {
                 try
                 {
-                    var receiveRequest = new ReceiveMessageRequest
+                    var response = await _sqsClient.ReceiveMessageAsync(new ReceiveMessageRequest
                     {
                         QueueUrl = _queueUrl,
                         MaxNumberOfMessages = 10,
                         WaitTimeSeconds = 5
-                    };
+                    }, stoppingToken);
 
-                    var response = await _sqsClient.ReceiveMessageAsync(receiveRequest, stoppingToken);
                     if (response?.Messages != null)
                     {
                         foreach (var message in response.Messages)
                         {
                             try
                             {
-                                using (JsonDocument doc = JsonDocument.Parse(message.Body))
+                                using JsonDocument doc = JsonDocument.Parse(message.Body);
+                                JsonElement root = doc.RootElement;
+
+                                // Extração segura usando TryGetProperty
+                                var processedEvent = new ProcessedEvent
                                 {
-                                    JsonElement root = doc.RootElement;
+                                    EventId = root.TryGetProperty("event_id", out var eid) ? eid.GetString() : Guid.NewGuid().ToString(),
+                                    DeveloperId = root.TryGetProperty("developer_id", out var did) ? did.GetString() : "unknown",
+                                    MetricType = root.TryGetProperty("metric_type", out var mt) ? mt.GetString() : "unknown",
+                                    Value = root.TryGetProperty("value", out var val) ? val.GetDouble() : 0,
+                                    Repository = root.TryGetProperty("repository", out var repo) ? repo.GetString() : "none",
+                                    Timestamp = root.TryGetProperty("timestamp", out var ts) ? ts.GetDateTime() : DateTime.UtcNow
+                                };
 
-                                    // Extraindo valores manualmente das chaves JSON
-                                    string eventId = root.GetProperty("event_id").GetString();
-                                    string developerId = root.GetProperty("developer_id").GetString();
-                                    string metricType = root.GetProperty("metric_type").GetString();
-                                    double value = root.GetProperty("value").GetDouble();
-                                    string repository = root.GetProperty("repository").GetString();
-                                    DateTime timestamp = root.GetProperty("timestamp").GetDateTime();
+                                await saveEventToDynamoAsync(processedEvent, stoppingToken);
+                                await updateDeveloperSummaryAsync(processedEvent, stoppingToken);
 
-                                    // Criando o objeto manualmente com os dados extraídos
-                                    var processedEvent = new ProcessedEvent
-                                    {
-                                        EventId = eventId,
-                                        DeveloperId = developerId,
-                                        MetricType = metricType,
-                                        Value = value,
-                                        Repository = repository,
-                                        Timestamp = timestamp
-                                    };
-
-                                    using (_logger.BeginScope("{EventId}", processedEvent.EventId))
-                                    {
-                                        _logger.LogInformation("Consumindo evento processado para agregação.");
-
-                                        bool isDuplicate = await checkIdempotencyAsync(processedEvent.EventId, stoppingToken);
-                                        if (isDuplicate)
-                                        {
-                                            _logger.LogWarning("Evento duplicado. Ignorando.");
-                                            await _sqsClient.DeleteMessageAsync(_queueUrl, message.ReceiptHandle, stoppingToken);
-                                            continue;
-                                        }
-
-                                        await saveEventToDynamoAsync(processedEvent, stoppingToken);
-                                        await updateDeveloperSummaryAsync(processedEvent, stoppingToken);
-
-                                        await _sqsClient.DeleteMessageAsync(_queueUrl, message.ReceiptHandle, stoppingToken);
-                                        _logger.LogInformation("Métricas persistidas com sucesso.");
-                                    }
-                                }        
+                                await _sqsClient.DeleteMessageAsync(_queueUrl, message.ReceiptHandle, stoppingToken);
+                                _logger.LogInformation("Evento {Id} processado com sucesso.", processedEvent.EventId);
                             }
                             catch (Exception ex)
                             {
-                                _logger.LogError(ex, "Erro ao processar agregacao da mensagem.");
+                                _logger.LogError(ex, "Erro ao processar mensagem específica.");
                             }
                         }
                     }
                 }
-                catch (Amazon.SQS.Model.QueueDoesNotExistException)
-                {
-                    // Tratamento elegante: aguarda a criação da fila pelo LocalStack
-                    _logger.LogWarning("A fila 'processed-events' ainda nao existe. Aguardando inicializacao...");
-                    await Task.Delay(3000, stoppingToken);
-                }
                 catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
                 {
-                    _logger.LogError(ex, "Erro no loop de consumo do SQS no Aggregator.");
+                    _logger.LogError(ex, "Erro no loop de consumo.");
                     await Task.Delay(5000, stoppingToken);
                 }
             }
         }
 
-        private async Task<bool> checkIdempotencyAsync(string eventId, CancellationToken cancellationToken)
-        {
-            var request = new GetItemRequest
-            {
-                TableName = "events",
-                Key = new Dictionary<string, AttributeValue> { { "event_id", new AttributeValue { S = eventId } } }
-            };
-
-            var response = await _dynamoDb.GetItemAsync(request, cancellationToken);
-            return response.IsItemSet;
-        }
-
-        private async Task saveEventToDynamoAsync(ProcessedEvent ev, CancellationToken cancellationToken)
-        {
-            var request = new PutItemRequest
-            {
-                TableName = "events",
-                Item = new Dictionary<string, AttributeValue>
-                {
-                    { "event_id", new AttributeValue { S = ev.EventId } },
-                    { "developer_id", new AttributeValue { S = ev.DeveloperId } },
-                    { "metric_type", new AttributeValue { S = ev.MetricType } },
-                    { "value", new AttributeValue { N = ev.Value.ToString() } },
-                    { "repository", new AttributeValue { S = ev.Repository } },
-                    { "timestamp", new AttributeValue { S = ev.Timestamp.ToString("yyyy-MM-ddTHH:mm:ssZ") } },
-                    { "processed_at", new AttributeValue { S = ev.ProcessedAt.ToString("yyyy-MM-ddTHH:mm:ssZ") } },
-                    { "processor_id", new AttributeValue { S = ev.ProcessorId } }
-                }
-            };
-            await _dynamoDb.PutItemAsync(request, cancellationToken);
-        }
-
         private async Task updateDeveloperSummaryAsync(ProcessedEvent ev, CancellationToken cancellationToken)
         {
-            // Mapeamos qual campo deve ser incrementado baseando-se no tipo da métrica
             string metricField = ev.MetricType switch
             {
                 "commit" => "total_commits",
                 "pull_request" => "total_pull_requests",
                 "review_time" => "total_review_time_sum",
-                _ => "other_metrics" // fallback para contagem genérica
+                _ => "other_metrics"
             };
 
             var request = new UpdateItemRequest
             {
                 TableName = "developer_summary",
                 Key = new Dictionary<string, AttributeValue> { { "developer_id", new AttributeValue { S = ev.DeveloperId } } },
-
-                // A lógica atômica: ADD soma o valor, SET atualiza a data da última atividade
                 UpdateExpression = "ADD #field :inc, events_processed :one SET last_activity = :now",
-                ConditionExpression = "attribute_not_exists(processed_events.#eventId)",
-
-                ExpressionAttributeNames = new Dictionary<string, string>
-                {
-                    { "#field", metricField },
-                    { "#eventId", ev.EventId }
-                },
-
+                ExpressionAttributeNames = new Dictionary<string, string> { { "#field", metricField } },
                 ExpressionAttributeValues = new Dictionary<string, AttributeValue>
                 {
                     { ":inc", new AttributeValue { N = ev.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) } },
@@ -185,17 +111,23 @@ namespace Aggregator
                     { ":now", new AttributeValue { S = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ") } }
                 }
             };
+            await _dynamoDb.UpdateItemAsync(request, cancellationToken);
+        }
 
-            try
+        private async Task saveEventToDynamoAsync(ProcessedEvent ev, CancellationToken cancellationToken)
+        {
+            // Simplificado para apenas persistir o evento
+            var request = new PutItemRequest
             {
-                await _dynamoDb.UpdateItemAsync(request, cancellationToken);
-                _logger.LogInformation("Métricas de {DevId} atualizadas atomicamente. Campo: {Field}", ev.DeveloperId, metricField);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Erro na atualização atômica do DynamoDB para o desenvolvedor {DevId}", ev.DeveloperId);
-                throw; // Importante: relançar a exceção para o worker tratar o retry (Backoff)
-            }
+                TableName = "events",
+                Item = new Dictionary<string, AttributeValue>
+                {
+                    { "event_id", new AttributeValue { S = ev.EventId } },
+                    { "developer_id", new AttributeValue { S = ev.DeveloperId } },
+                    { "value", new AttributeValue { N = ev.Value.ToString() } }
+                }
+            };
+            await _dynamoDb.PutItemAsync(request, cancellationToken);
         }
     }
 }
