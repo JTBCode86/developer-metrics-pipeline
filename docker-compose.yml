@@ -27,16 +27,16 @@ services:
   processor-service:
     container_name: metrics-processor
     build:
-      context: ./src
-      dockerfile: services/Processor/Dockerfile
+      context: .  # Agora o Docker vê a raiz (src/ e tests/)
+      dockerfile: src/services/Processor/Dockerfile
     ports:
-      - "5000:8080" # Porta 5000 exposta para o seu curl
+      - "5000:8080"
     environment:
       - AWS__ServiceURL=http://localstack:4566
       - AWS__Region=us-east-1
       - AWS_ACCESS_KEY_ID=mock_key
       - AWS_SECRET_ACCESS_KEY=mock_secret
-      - AWS__QueueUrl=http://localstack:4566/000000000000/raw-events # Nova config para o Program.cs
+      - AWS__QueueUrl=http://localstack:4566/000000000000/raw-events
       - QueueSettings__RawEventsQueueName=raw-events
       - ASPNETCORE_ENVIRONMENT=Development
     depends_on:
@@ -48,10 +48,10 @@ services:
   aggregator-service:
     container_name: metrics-aggregator
     build:
-      context: ./src
-      dockerfile: services/Aggregator/Dockerfile
+      context: .  # Agora o Docker vê a raiz (src/ e tests/)
+      dockerfile: src/services/Aggregator/Dockerfile
     ports:
-      - "5001:8080" # Porta 5001 para a API do Aggregator
+      - "5001:8080"
     environment:
       - AWS__ServiceURL=http://localstack:4566
       - AWS__Region=us-east-1
