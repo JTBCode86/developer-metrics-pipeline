@@ -179,10 +179,9 @@ aws dynamodb scan --table-name events --endpoint-url http://localhost:4566 --reg
 aws dynamodb scan --table-name developer_summary --endpoint-url http://localhost:4566 --region us-east-1
 ```
 
+**⚠️ Nota de Configuração:** Certifique-se de que os arquivos de script e configuração (`seed.sh`, `init-aws.sh`, `docker-compose.yml` e `Dockerfile`) estejam salvos com codificação **UTF-8** e final de linha **LF (Unix)**. Arquivos salvos com codificação Windows (CRLF) podem causar erros de sintaxe ou falhas de execução dentro dos contêineres Linux.
 
-> **⚠️ Nota de Configuração:** Certifique-se de que os arquivos de script e configuração (`seed.sh`, `init-aws.sh`, `docker-compose.yml` e `Dockerfile`) estejam salvos com codificação **UTF-8** e final de linha **LF (Unix)**. Arquivos salvos com codificação Windows (CRLF) podem causar erros de sintaxe ou falhas de execução dentro dos contêineres Linux.
-
-*Dica de CLI: Ao executar comandos aws dynamodb via terminal Windows (CMD/PowerShell) contra o container, atente-se às aspas. O uso de docker exec -it <container_nome> awslocal ... requer tratamento específico de aspas no JSON. Em caso de erro de sintaxe, prefira listar os itens com scan ou utilize o PowerShell para garantir a correta interpretação do JSON.*
+💡 **Dica de CLI:** Ao executar comandos `aws dynamodb` via terminal Windows (CMD/PowerShell) contra o container, atente-se às aspas. O uso de `docker exec -it <container_nome> awslocal ...` requer tratamento específico de aspas no JSON. Em caso de erro de sintaxe, prefira listar os itens com `scan` ou utilize o PowerShell para garantir a correta interpretação do JSON.
 
 ---
 
