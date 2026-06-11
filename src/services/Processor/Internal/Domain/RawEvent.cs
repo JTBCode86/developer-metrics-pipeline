@@ -18,7 +18,6 @@ namespace Processor.Internal.Domain
         public string Repository { get; set; } = string.Empty;
         public DateTime Timestamp { get; set; }
 
-        // Regras de negócio rígidas pedidas no PDF do Case
         public (bool IsValid, string FailureReason) Validate()
         {
             var validations = new List<(Func<bool> Check, string Error)>

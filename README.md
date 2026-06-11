@@ -41,6 +41,13 @@ O projeto foi estruturado seguindo princípios de **Clean Architecture** e **SOL
 
 Para garantir resiliência e integridade dos dados sob alta carga, o projeto passou por uma refatoração focada em padrões de sistemas distribuídos:
 
+## ✅ Validação e Testes
+O projeto conta com uma estratégia de validação de ponta a ponta, garantindo a integridade e a confiabilidade dos dados processados pelo pipeline:
+
+* **Teste de Carga/Integração:** Validação realizada através de disparo de carga simultânea via interface Swagger e terminal (PowerShell/CMD), garantindo a comunicação fluida entre `Processor` e `Aggregator`.
+* **Consistência:** Verificada via CLI do LocalStack (executando comandos `dynamodb scan` diretamente no container), confirmando que os contadores (`total_commits`, `total_pull_requests`) e os cálculos de média (`avg_review_time_minutes`) refletem com precisão absoluta os eventos processados.
+* **Resiliência:** O sistema foi submetido a cenários de falha, incluindo o envio de mensagens inválidas, validando o roteamento correto para a **DLQ** e a robustez dos logs de erro em tempo real.
+
 ### 1. Atomicidade e Consistência (Database-as-the-Brain)
 * **Problema:** O padrão original *Get-Modify-Put* sofria de *Race Conditions*, onde atualizações simultâneas causavam perda de dados.
 * **Solução:** Implementamos operações atômicas via `UpdateExpression` (`ADD`) no DynamoDB. Agora, a lógica de soma é processada nativamente pelo banco de dados, garantindo consistência total mesmo com múltiplas instâncias do Worker acessando o mesmo registro simultaneamente.
@@ -57,16 +64,21 @@ Para garantir resiliência e integridade dos dados sob alta carga, o projeto pas
 * Logs estruturados utilizando `BeginScope` para rastreabilidade de `EventId`.
 * Tratamento de *Graceful Shutdown* para garantir que todas as mensagens em processamento sejam finalizadas ou tratadas corretamente antes do encerramento do container.
 
+### 5. Resiliência do Consumer (Worker)
+* **Problema:** Erros intermitentes no loop de processamento (ex: respostas vazias do SQS ou nulos inesperados) causavam reinicialização constante dos serviços.
+* **Solução:** Implementamos lógica defensiva de Null-safety e tratamento robusto de exceções no loop ExecuteAsync. O Worker agora é capaz de tolerar falhas transientes e aguardar novas mensagens de forma resiliente, sem impacto na estabilidade da aplicação.
+
 ---
 
 ### Fluxo do Pipeline
 ```mermaid
 graph LR
     A[Raw Queue] --> B{Processor}
-    B -->|Inválido| C[DLQ]
     B -->|Válido| D[Processed Queue]
     D --> E{Aggregator}
-    E -->|Update Atômico| F[(DynamoDB)]
+    E --> F[(DynamoDB)]
+    F --> G[API de Consulta]
+    G -->|Calcula Média na Leitura| H[Resposta Final]
 
 ```
   
@@ -168,6 +180,8 @@ aws dynamodb scan --table-name developer_summary --endpoint-url http://localhost
 ```
 
 > **⚠️ Nota de Configuração:** Certifique-se de que os arquivos de script e configuração (`seed.sh`, `init-aws.sh`, `docker-compose.yml` e `Dockerfile`) estejam salvos com codificação **UTF-8** e final de linha **LF (Unix)**. Arquivos salvos com codificação Windows (CRLF) podem causar erros de sintaxe ou falhas de execução dentro dos contêineres Linux.
+
+*Dica de CLI: Ao executar comandos aws dynamodb via terminal Windows (CMD/PowerShell) contra o container, atente-se às aspas. O uso de docker exec -it <container_nome> awslocal ... requer tratamento específico de aspas no JSON. Em caso de erro de sintaxe, prefira listar os itens com scan ou utilize o PowerShell para garantir a correta interpretação do JSON.
 
 ## 🤝 Contribuições
 Contribuições são bem-vindas! Sinta-se à vontade para abrir uma *Issue* ou enviar um *Pull Request* caso encontre melhorias, correções de bugs ou novas funcionalidades para o pipeline.

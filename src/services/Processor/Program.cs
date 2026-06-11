@@ -4,7 +4,7 @@ using Amazon.Extensions.NETCore.Setup;
 using Amazon.SQS;
 using Amazon.SQS.Model;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.OpenApi;// Corrigido: OpenApiInfo está aqui
+using Microsoft.OpenApi;
 using Processor.Internal.Domain;
 using System.Text.Json;
 
@@ -36,7 +36,6 @@ app.UseSwaggerUI(c =>
 });
 
 // --- Endpoints ---
-
 // 1. GET /health - Verifica conexões (Health Check)
 app.MapGet("/health", async ([FromServices] IAmazonSQS sqs, [FromServices] IAmazonDynamoDB db) =>
 {
@@ -52,21 +51,22 @@ app.MapGet("/health", async ([FromServices] IAmazonSQS sqs, [FromServices] IAmaz
     }
 });
 
-// 2. POST
-app.MapPost("/api/eventos", async (RawEvent rawEvent, [FromServices] IAmazonSQS sqsClient, [FromServices] IConfiguration config) =>
+// 2. POST /api/eventos - Recebe eventos e publica no SQS
+app.MapPost("/api/eventos", async (RawEvent evento, IAmazonSQS sqsClient, IConfiguration configuration) =>
 {
-    var queueUrl = config["AWS:QueueUrl"];
-    var messageBody = JsonSerializer.Serialize(rawEvent);
+    var queueUrl = configuration["AWS:QueueUrl"];
 
-    await sqsClient.SendMessageAsync(new SendMessageRequest
+    var request = new SendMessageRequest
     {
         QueueUrl = queueUrl,
-        MessageBody = messageBody
-    });
+        MessageBody = JsonSerializer.Serialize(evento)
+    };
 
-    return Results.Accepted();
-})
-.WithName("ProcessarEvento");
+    // Publica no SQS
+    await sqsClient.SendMessageAsync(request);
+
+    return Results.Accepted(); 
+});
 
 // 3. GET /metrics/{developer_id} - Retorna todos os eventos do desenvolvedor
 app.MapGet("/metrics/{developer_id}", async (string developer_id,[FromServices] IAmazonDynamoDB dbClient,[FromServices] IConfiguration config) =>
@@ -124,19 +124,14 @@ app.MapGet("/api/metrics/{developer_id}/summary", async (string developer_id, [F
     // Extração dos atributos do DynamoDB
     var item = response.Item;
 
-    // Função auxiliar para evitar KeyNotFoundException
-    //string GetVal(string key) => item.ContainsKey(key) ? item[key].N : "0";
     string GetVal(string key) => item.TryGetValue(key, out var val) ? val.N : "0";
 
     // Extração segura
     int totalCommits = int.Parse(GetVal("total_commits"));
     int totalPRs = int.Parse(GetVal("total_pull_requests"));
     int eventsProcessed = int.Parse(GetVal("events_processed"));
-
-    // ATENÇÃO: Verifique se a coluna no banco chama-se exatamente 'total_review_time_sum'
-    // Se o seu modelo calcula a média no Aggregator, talvez você deva buscar 'avg_review_time_minutes'
+    double totalReviewTimeSum = double.Parse(GetVal("total_review_time_sum"));
     double avgReviewTime = double.Parse(GetVal("avg_review_time_minutes"));
-
     string lastActivity = item.ContainsKey("last_activity") ? item["last_activity"].S : DateTime.MinValue.ToString("o");
 
     return Results.Ok(new

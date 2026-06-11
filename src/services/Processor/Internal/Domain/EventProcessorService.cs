@@ -12,7 +12,6 @@ public class EventProcessorService
         if (string.IsNullOrEmpty(raw.MetricType))
             return (false, "MetricType ausente.");
 
-        // Só chega aqui se não falhou em nenhuma das verificações acima
         return (true, string.Empty);
     }
 

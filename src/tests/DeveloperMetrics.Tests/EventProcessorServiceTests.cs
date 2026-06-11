@@ -66,8 +66,6 @@ namespace DeveloperMetrics.Tests
             var ev = new ProcessedEvent { MetricType = metricType };
 
             // Act
-            // Se você ainda não extraiu a lógica de agregação para um serviço, 
-            // faremos isso agora para garantir que esse teste passe.
             string category = AggregatorLogic.DetermineCategory(ev.MetricType);
 
             // Assert

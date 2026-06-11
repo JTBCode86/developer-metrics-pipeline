@@ -8,7 +8,7 @@ using Amazon.SQS.Model;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Processor.Internal.Domain; // Certifique-se de importar o namespace do serviço
+using Processor.Internal.Domain;
 
 namespace Processor
 {
@@ -16,7 +16,7 @@ namespace Processor
     {
         private readonly IAmazonSQS _sqsClient;
         private readonly ILogger<Worker> _logger;
-        private readonly EventProcessorService _processorService; // Serviço de Lógica
+        private readonly EventProcessorService _processorService;
         private readonly string _rawQueueUrl;
         private readonly string _processedQueueUrl;
         private readonly string _dlqQueueUrl;
@@ -24,12 +24,11 @@ namespace Processor
 
         private static readonly string InstanceId = "processor-instance-" + Guid.NewGuid().ToString().Substring(0, 8);
 
-        // --- CONSTRUTOR ATUALIZADO ---
         public Worker(
             IAmazonSQS sqsClient,
             IConfiguration configuration,
             ILogger<Worker> logger,
-            EventProcessorService processorService) // Injetamos o serviço aqui
+            EventProcessorService processorService)
         {
             _sqsClient = sqsClient ?? throw new ArgumentNullException(nameof(sqsClient));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -74,7 +73,6 @@ namespace Processor
                                 {
                                     var rawEvent = JsonSerializer.Deserialize<RawEvent>(message.Body, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
 
-                                    // --- UTILIZANDO O SERVIÇO ---
                                     var (isValid, failureReason) = _processorService.Validate(rawEvent);
 
                                     if (!isValid)

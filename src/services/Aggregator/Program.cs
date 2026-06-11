@@ -21,7 +21,6 @@ builder.Services.AddHostedService<Worker>();
 
 var app = builder.Build();
 
-// API para Consulta (Requisito)
 // GET /metrics/{developerId}
 app.MapGet("/metrics/{developerId}", async (string developerId, IDynamoDBContext dbContext) =>
 {
