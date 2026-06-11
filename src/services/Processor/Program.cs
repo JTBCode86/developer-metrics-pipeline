@@ -120,7 +120,6 @@ app.MapGet("/metrics/{developer_id}", async (string developer_id,[FromServices] 
 // 4. GET: /metrics/{developer_id}/summary (Agregado)
 app.MapGet("/api/metrics/{developer_id}/summary", async (string developer_id, [FromServices] IAmazonDynamoDB db, IConfiguration config) =>
 {
- 
     var request = new GetItemRequest
     {
         TableName = "developer_summary",
@@ -134,26 +133,51 @@ app.MapGet("/api/metrics/{developer_id}/summary", async (string developer_id, [F
     // Extração dos atributos do DynamoDB
     var item = response.Item;
 
-    // Convertendo valores (o DynamoDB retorna números como strings)
-    int totalCommits = int.Parse(item["total_commits"].N);
-    int totalPRs = int.Parse(item["total_pull_requests"].N);
-    int eventsProcessed = int.Parse(item["events_processed"].N);
-    double totalReviewTime = double.Parse(item["total_review_time_sum"].N);
-    string lastActivity = item["last_activity"].S;
+    // Função auxiliar para evitar KeyNotFoundException
+    string GetVal(string key) => item.ContainsKey(key) ? item[key].N : "0";
 
-    // Cálculo da média sob demanda (Read-Time Aggregation)
-    double avgReviewTime = eventsProcessed > 0 ? totalReviewTime / eventsProcessed : 0;
+    // Extração segura
+    int totalCommits = int.Parse(GetVal("total_commits"));
+    int totalPRs = int.Parse(GetVal("total_pull_requests"));
+    int eventsProcessed = int.Parse(GetVal("events_processed"));
 
-    // Retorno no formato limpo solicitado
+    // ATENÇÃO: Verifique se a coluna no banco chama-se exatamente 'total_review_time_sum'
+    // Se o seu modelo calcula a média no Aggregator, talvez você deva buscar 'avg_review_time_minutes'
+    double avgReviewTime = double.Parse(GetVal("avg_review_time_minutes"));
+
+    string lastActivity = item.ContainsKey("last_activity") ? item["last_activity"].S : DateTime.MinValue.ToString("o");
+
     return Results.Ok(new
     {
         developer_id = developer_id,
         total_commits = totalCommits,
         total_pull_requests = totalPRs,
-        avg_review_time_minutes = Math.Round(avgReviewTime, 2),
+        avg_review_time_minutes = avgReviewTime,
         events_processed = eventsProcessed,
         last_activity = lastActivity
     });
+
+
+    // Convertendo valores (o DynamoDB retorna números como strings)
+    //int totalCommits = int.Parse(item["total_commits"].N);
+    //int totalPRs = int.Parse(item["total_pull_requests"].N);
+    //int eventsProcessed = int.Parse(item["events_processed"].N);
+    //double totalReviewTime = double.Parse(item["total_review_time_sum"].N);
+    //string lastActivity = item["last_activity"].S;
+
+    // Cálculo da média sob demanda (Read-Time Aggregation)
+    //double avgReviewTime = eventsProcessed > 0 ? totalReviewTime / eventsProcessed : 0;
+
+    // Retorno no formato limpo solicitado
+    //return Results.Ok(new
+    //{
+    //    developer_id = developer_id,
+    //    total_commits = totalCommits,
+    //    total_pull_requests = totalPRs,
+    //    avg_review_time_minutes = Math.Round(avgReviewTime, 2),
+    //    events_processed = eventsProcessed,
+    //    last_activity = lastActivity
+    //});
 })
 
 .WithName("BuscarEventoPorId");
