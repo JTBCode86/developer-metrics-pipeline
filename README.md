@@ -114,6 +114,20 @@ Após subir o ambiente via Docker (`docker-compose up`), a documentação intera
     * Informe o parâmetro necessário (ex: `developer_id`) e clique em **"Execute"** para ver a resposta formatada em JSON.
 
 **Endpoints Principais:**
+
+* `POST /api/eventos`: Envio de novos eventos de métricas para o pipeline.
+    * **Payload Exemplo:**
+        ```json
+        {
+          "event_id": "evt-777",
+          "developer_id": "juca-dev",
+          "metric_type": "commits",
+          "value": 10,
+          "repository": "meu-projeto",
+          "timestamp": "2026-06-10T23:05:00Z"
+        }
+        ```
+
 * `GET /health`: Monitoramento de prontidão (*Health Check*).
 * `GET /metrics/{developer_id}`: Recuperação de eventos brutos processados.
 * `GET /metrics/{developer_id}/summary`: Consulta consolidada com métricas agregadas e cálculo de média sob demanda.
@@ -152,6 +166,8 @@ aws dynamodb list-tables --endpoint-url http://localhost:4566 --region us-east-1
 aws dynamodb scan --table-name events --endpoint-url http://localhost:4566 --region us-east-1
 aws dynamodb scan --table-name developer_summary --endpoint-url http://localhost:4566 --region us-east-1
 ```
+
+> **⚠️ Nota de Configuração:** Certifique-se de que os arquivos de script e configuração (`seed.sh`, `init-aws.sh`, `docker-compose.yml` e `Dockerfile`) estejam salvos com codificação **UTF-8** e final de linha **LF (Unix)**. Arquivos salvos com codificação Windows (CRLF) podem causar erros de sintaxe ou falhas de execução dentro dos contêineres Linux.
 
 ## 🤝 Contribuições
 Contribuições são bem-vindas! Sinta-se à vontade para abrir uma *Issue* ou enviar um *Pull Request* caso encontre melhorias, correções de bugs ou novas funcionalidades para o pipeline.
