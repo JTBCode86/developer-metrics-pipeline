@@ -6,6 +6,9 @@
 
 Pipeline de dados orientado a eventos (EDA) desenvolvido em **.NET 9** para coleta, processamento e agregação de métricas de produtividade de desenvolvedores em tempo real.
 
+## 📌 Contexto do Projeto
+Este projeto foi desenvolvido com base em um processo seletivo realizado no **Itaú-Unibanco**. Para mais detalhes sobre os requisitos e escopo técnico original, acesse: [case-entrevista-desenvolvedor-pleno.md](./src/case-entrevista-desenvolvedor-pleno.md).
+
 ## 📋 Pré-requisitos
 Para executar este projeto, você precisará dos seguintes softwares instalados em sua máquina:
 
